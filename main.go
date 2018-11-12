@@ -24,8 +24,8 @@ const (
 func main() {
 	var detail *bool
 	detail = flag.Bool("detail", false, "detail")
-	var time *string
-	time = flag.String("time", "auto", "day or night or auto")
+	var _time *string
+	_time = flag.String("time", "auto", "day or night or auto")
 	var help *bool
 	help = flag.Bool("help", false, "help")
 	flag.Parse()
@@ -35,7 +35,7 @@ func main() {
 		return
 	}
 
-	url := getURL(*time)
+	url := getURL(*_time)
 	futrues, err := fetch(url)
 
 	if err != nil {
@@ -43,7 +43,7 @@ func main() {
 		return
 	}
 
-	fmt.Println("isOpen:", isOpen())
+	fmt.Println("isOpen:", isOpen(), " time:", time.Now())
 	if *detail {
 		printDetail(futrues)
 	} else {
