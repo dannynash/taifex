@@ -4,6 +4,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/parnurzeal/gorequest"
@@ -21,11 +23,14 @@ const (
 	URL = "http://www.taifex.com.tw/cht/quotesApi/getQuotes"
 )
 
+var pre_vol int
+var pre_future []Futures
+
 func main() {
 	var detail *bool
 	detail = flag.Bool("detail", false, "detail")
-	var _time *string
-	_time = flag.String("time", "auto", "day or night or auto")
+	var s_time *string
+	s_time = flag.String("time", "auto", "day or night or auto")
 	var help *bool
 	help = flag.Bool("help", false, "help")
 	flag.Parse()
@@ -35,19 +40,32 @@ func main() {
 		return
 	}
 
-	url := getURL(*_time)
-	futrues, err := fetch(url)
-
-	if err != nil {
-		fmt.Println(err)
+	fmt.Println("isOpen:", isOpen())
+	if !isOpen() {
 		return
 	}
+	for true {
+		url := getURL(*s_time)
+		futrues, err := fetch(url)
 
-	fmt.Println("isOpen:", isOpen(), " time:", time.Now())
-	if *detail {
-		printDetail(futrues)
-	} else {
-		printBrief(futrues)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+        
+        if len(pre_future) > 0 {
+            if futrues[0].Volume == pre_future[0].Volume {
+                continue
+            }
+        }
+
+		if *detail {
+			printDetail(futrues)
+		} else {
+			printBrief(futrues)
+		}
+		time.Sleep(30 * time.Second)
+        pre_future = futrues
 	}
 }
 
@@ -60,7 +78,12 @@ func printDetail(futrues []Futures) {
 
 func printBrief(futrues []Futures) {
 	future := futrues[0]
-	s := fmt.Sprintf("p:%s, vol:%s, range:%s", future.Price, future.Volume, future.Updown)
+	vol, err := strconv.Atoi(strings.Replace(future.Volume, ",", "", -1))
+	if err != nil {
+		fmt.Println(err)
+	}
+	s := fmt.Sprintf("[%s] p:%s, vol:%s, range:%s, vol_dif:%d", time.Now().Format("2006-01-02 15:04:05"), future.Price, future.Volume, future.Updown, vol-pre_vol)
+	pre_vol = vol
 	fmt.Println(s)
 }
 
@@ -85,7 +108,7 @@ func getURL(time string) (url string) {
 	case "night":
 		return fmt.Sprintf("%s?objId=12", URL)
 	default:
-		if isOpen() {
+		if isDay() {
 			return fmt.Sprintf("%s?objId=2", URL)
 		}
 		return fmt.Sprintf("%s?objId=12", URL)
@@ -97,12 +120,46 @@ func isOpen() bool {
 	if t.Weekday() == 0 || t.Weekday() == 6 {
 		return false
 	}
-	h := t.Hour()
+	h := float64(t.Hour())
+	m := float64(t.Minute())
+	s := float64(t.Second())
 
-	if h < 9 || h >= 14 {
+	t_in_min := h*60 + m + s/60
+
+	// 05:00 = 300
+	// 08:45 = 525
+	// 13:45 = 825
+	// 15:00 = 900
+
+	if t_in_min < 525 && t_in_min > 300 {
+		return false
+	}
+	if t_in_min > 825 && t_in_min < 900 {
 		return false
 	}
 	return true
+}
+
+func isDay() bool {
+	t := time.Now()
+	if t.Weekday() == 0 || t.Weekday() == 6 {
+		return false
+	}
+	h := t.Hour()
+	m := t.Minute()
+	s := t.Second()
+
+	t_in_min := h*60 + m + s/60.0
+
+	// 05:00 = 300
+	// 08:45 = 525
+	// 13:45 = 825
+	// 15:00 = 900
+
+	if t_in_min >= 525 && t_in_min <= 825 {
+		return true
+	}
+	return false
 }
 
 // 1
