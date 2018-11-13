@@ -26,27 +26,44 @@ const (
 var pre_vol int
 var pre_ud int
 var pre_future []Futures
+var pre_data_init bool = false
+var m2 int = 0
 
 func main() {
-	var detail *bool
-	detail = flag.Bool("detail", false, "detail")
-	var s_time *string
-	s_time = flag.String("time", "auto", "day or night or auto")
-	var help *bool
-	help = flag.Bool("help", false, "help")
+	pbDetail := flag.Bool("detail", false, "detail")
+	psTime := flag.String("time", "auto", "day or night or auto")
+	pbWait := flag.Bool("wait", false, "wait forever to open")
+	pbHelp := flag.Bool("help", false, "help")
 	flag.Parse()
 
-	if *help {
+	if *pbHelp {
 		fmt.Println("--detail for bool default false\n--time for day/night/auto default auto")
 		return
 	}
 
-	fmt.Println("isOpen:", isOpen())
-	if !isOpen() {
-		return
+	bOpened := isOpen()
+	fmt.Println("isOpen:", bOpened)
+
+	if !bOpened {
+		fmt.Printf("Wait to open.")
+		// iWaitIdx := 0
+		for *pbWait {
+			// nowTime = time.Now()
+			// openTime = getNextOpenTime()
+			// fmt.Printf("\rWait %dm%ds to open.", )
+			time.Sleep(1 * time.Second)
+			if isOpen() {
+				fmt.Printf("\r\n")
+				break
+			}
+		}
+		if !*pbWait {
+			return
+		}
 	}
+
 	for true {
-		url := getURL(*s_time)
+		url := getURL(*psTime)
 		futrues, err := fetch(url)
 
 		if err != nil {
@@ -60,7 +77,7 @@ func main() {
 			}
 		}
 
-		if *detail {
+		if *pbDetail {
 			printDetail(futrues)
 		} else {
 			printBrief(futrues)
@@ -72,7 +89,7 @@ func main() {
 
 func printDetail(futrues []Futures) {
 	for _, future := range futrues {
-		s := fmt.Sprintf("c:%s, p:%s, vol:%s, name:%s, range:%s", future.Contract, future.Price, future.Volume, future.ContractName, future.Updown)
+		s := fmt.Sprintf("c:%s, p:% 5s, vol:% 7s, name:%s, range:% 5s", future.Contract, future.Price, future.Volume, future.ContractName, future.Updown)
 		fmt.Println(s)
 	}
 }
@@ -90,15 +107,23 @@ func printBrief(futrues []Futures) {
 	vol := StrToInt(future.Volume)
 	price := StrToInt(future.Price)
 	updown := StrToInt(future.Updown)
-	s := fmt.Sprintf("[%s] p:%d, vol:%d, range:%d, vol_dif:%d, ud_dif:%d",
+	if pre_data_init == false {
+		pre_vol = vol
+		pre_ud = updown
+	}
+	m2 += (vol - pre_vol) * (updown - pre_ud)
+	s := fmt.Sprintf("[%s] p:% 5d, v:% 7d, r:% 5d, v_dif:% 5d, r_dif:% 4d, m1:% 9d, m2:% 9d",
 		time.Now().Format("2006-01-02 15:04:05"),
 		price,
 		vol,
 		updown,
 		vol-pre_vol,
-		updown-pre_ud)
+		updown-pre_ud,
+		(vol-pre_vol)*(updown-pre_ud),
+		m2)
 	pre_vol = vol
 	pre_ud = updown
+	pre_data_init = true
 	fmt.Println(s)
 }
 
@@ -175,6 +200,31 @@ func isDay() bool {
 		return true
 	}
 	return false
+}
+
+func getNextOpenTime() bool {
+	t := time.Now()
+	if t.Weekday() == 0 || t.Weekday() == 6 {
+		return false
+	}
+	h := float64(t.Hour())
+	m := float64(t.Minute())
+	s := float64(t.Second())
+
+	t_in_min := h*60 + m + s/60
+
+	// 05:00 = 300
+	// 08:45 = 525
+	// 13:45 = 825
+	// 15:00 = 900
+
+	if t_in_min < 525 && t_in_min > 300 {
+		return false
+	}
+	if t_in_min > 825 && t_in_min < 900 {
+		return false
+	}
+	return true
 }
 
 // 1
