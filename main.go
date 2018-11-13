@@ -24,6 +24,7 @@ const (
 )
 
 var pre_vol int
+var pre_ud int
 var pre_future []Futures
 
 func main() {
@@ -52,12 +53,12 @@ func main() {
 			fmt.Println(err)
 			return
 		}
-        
-        if len(pre_future) > 0 {
-            if futrues[0].Volume == pre_future[0].Volume {
-                continue
-            }
-        }
+
+		if len(pre_future) > 0 {
+			if futrues[0].Volume == pre_future[0].Volume {
+				continue
+			}
+		}
 
 		if *detail {
 			printDetail(futrues)
@@ -65,7 +66,7 @@ func main() {
 			printBrief(futrues)
 		}
 		time.Sleep(30 * time.Second)
-        pre_future = futrues
+		pre_future = futrues
 	}
 }
 
@@ -76,14 +77,28 @@ func printDetail(futrues []Futures) {
 	}
 }
 
+func StrToInt(s string) int {
+	num, err := strconv.Atoi(strings.Replace(s, ",", "", -1))
+	if err == nil {
+		return num
+	}
+	return -1
+}
+
 func printBrief(futrues []Futures) {
 	future := futrues[0]
-	vol, err := strconv.Atoi(strings.Replace(future.Volume, ",", "", -1))
-	if err != nil {
-		fmt.Println(err)
-	}
-	s := fmt.Sprintf("[%s] p:%s, vol:%s, range:%s, vol_dif:%d", time.Now().Format("2006-01-02 15:04:05"), future.Price, future.Volume, future.Updown, vol-pre_vol)
+	vol := StrToInt(future.Volume)
+	price := StrToInt(future.Price)
+	updown := StrToInt(future.Updown)
+	s := fmt.Sprintf("[%s] p:%d, vol:%d, range:%d, vol_dif:%d, ud_dif:%d",
+		time.Now().Format("2006-01-02 15:04:05"),
+		price,
+		vol,
+		updown,
+		vol-pre_vol,
+		updown-pre_ud)
 	pre_vol = vol
+	pre_ud = updown
 	fmt.Println(s)
 }
 
