@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"math/rand"
 	"os"
 	"strconv"
 	"strings"
@@ -20,6 +21,13 @@ type Futures struct {
 	Updown       string `json:"updown"`
 }
 
+type StockPrice struct {
+	Open  int
+	High  int
+	Low   int
+	Close int
+}
+
 const (
 	URL = "http://www.taifex.com.tw/cht/quotesApi/getQuotes"
 )
@@ -29,6 +37,7 @@ var pre_ud int
 var pre_future []Futures
 var pre_data_init bool = false
 var m2 int = 0
+var keep_m1 = []int{0, 0, 0, 0, 0, 0}
 
 func main() {
 	pbDetail := flag.Bool("detail", false, "detail")
@@ -41,6 +50,8 @@ func main() {
 		fmt.Println("--detail for bool default false\n--time for day/night/auto default auto")
 		return
 	}
+
+RESTART:
 
 	bOpened := isOpen()
 	fmt.Println("isOpen:", bOpened)
@@ -57,21 +68,28 @@ func main() {
 				time.Sleep(1 * time.Second)
 				if isOpen() {
 					fmt.Printf("\r\n")
-                    time.Sleep(1 * time.Second)
+					time.Sleep(1 * time.Second)
 					break
 				}
 			}
 		}
 
 	}
+	// t := time.Now()
+	// time.Sleep(time.Duration(29-t.Second()%30) * time.Second)
 
 	for true {
 		url := getURL(*psTime)
+		// StockPrice := ThreeMinK
 		futrues, err := fetch(url)
 
 		if err != nil {
 			fmt.Println(err)
-			return
+			if !*pbWait {
+				return
+			} else {
+				goto RESTART
+			}
 		}
 
 		if len(pre_future) > 0 {
@@ -85,7 +103,7 @@ func main() {
 		} else {
 			printBrief(futrues)
 		}
-		time.Sleep(30 * time.Second)
+		time.Sleep(time.Duration(5000+rand.Intn(1000)) * time.Millisecond)
 		pre_future = futrues
 	}
 }
@@ -110,11 +128,27 @@ func printBrief(futrues []Futures) {
 	vol := StrToInt(future.Volume)
 	price := StrToInt(future.Price)
 	updown := StrToInt(future.Updown)
+	bIsDay := isDay()
+
+	var th int
+	if bIsDay {
+		th = 4000
+	} else {
+		th = 1000
+	}
+
 	if pre_data_init == false {
 		pre_vol = vol
 		pre_ud = updown
 	}
-	m2 += (vol - pre_vol) * (updown - pre_ud)
+	m1 := (vol - pre_vol) * (updown - pre_ud)
+	keep_m1 = keep_m1[1:]
+	keep_m1 = append(keep_m1, m1)
+	if (Sum(keep_m1) > th && m1 > th) || (Sum(keep_m1) < -th && m1 < -th) {
+		m2 = 0
+	} else {
+		m2 += (vol - pre_vol) * (updown - pre_ud)
+	}
 	s := fmt.Sprintf("[%s] p:% 5d, v:% 7d, r:% 5d, v_dif:% 5d, r_dif:% 4d, m1:% 9d, m2:% 9d",
 		time.Now().Format("2006-01-02 15:04:05"),
 		price,
@@ -122,7 +156,7 @@ func printBrief(futrues []Futures) {
 		updown,
 		vol-pre_vol,
 		updown-pre_ud,
-		(vol-pre_vol)*(updown-pre_ud),
+		m1,
 		m2)
 	pre_vol = vol
 	pre_ud = updown
@@ -226,10 +260,18 @@ func getDiffToNextOpenTime() (H int, M int, S int) {
 			openTime = t
 		}
 	}
-	M = int(openTime-t_in_min) % 60
 	H = int(openTime-t_in_min) / 60
-	S = int(60 - s)
+	M = int(openTime-t_in_min) % 60
+	S = int(59 - s)
 	return
+}
+
+func Sum(a []int) int {
+	s := 0
+	for _, v := range a {
+		s += v
+	}
+	return s
 }
 
 // 1
