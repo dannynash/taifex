@@ -1,7 +1,7 @@
 package main
 
 import (
-	"errors"
+	// "errors"
 	"flag"
 	"fmt"
 	"math/rand"
@@ -40,6 +40,7 @@ var m2 int = 0
 var keep_m1 = []int{0, 0, 0, 0, 0, 0}
 
 func main() {
+	var bOpened bool
 	pbDetail := flag.Bool("detail", false, "detail")
 	psTime := flag.String("time", "auto", "day or night or auto")
 	pbWait := flag.Bool("wait", false, "wait forever to open")
@@ -52,19 +53,27 @@ func main() {
 	}
 
 RESTART:
+	pre_vol = 0
+	pre_ud = 0
+	pre_future = nil
+	pre_data_init = false
+	for i, _ := range keep_m1 {
+		keep_m1[i] = 0
+	}
 
-	bOpened := isOpen()
+	bOpened = isOpen()
 	fmt.Println("isOpen:", bOpened)
+	time.Sleep(1 * time.Second)
 
 	if !bOpened {
 		fmt.Printf("Wait to open.......")
+		time.Sleep(1 * time.Second)
 		if !*pbWait {
 			return
 		} else {
 			for {
 				diffH, diffM, diffS := getDiffToNextOpenTime()
-				fmt.Fprintf(os.Stderr, "\rWait %dh%dm%ds to open.", diffH, diffM, diffS)
-				// fmt.Printf("\rWait %dh%dm%ds to open.", diffH, diffM, diffS)
+				fmt.Fprintf(os.Stderr, "\rWait %2dh% 2dm% 2ds to open.......", diffH, diffM, diffS)
 				time.Sleep(1 * time.Second)
 				if isOpen() {
 					fmt.Printf("\r\n")
@@ -73,15 +82,19 @@ RESTART:
 				}
 			}
 		}
-
 	}
-	// t := time.Now()
-	// time.Sleep(time.Duration(29-t.Second()%30) * time.Second)
 
+	// fetch_retry := 0
 	for true {
 		url := getURL(*psTime)
-		// StockPrice := ThreeMinK
 		futrues, err := fetch(url)
+		if !isOpen() {
+			if !*pbWait {
+				return
+			} else {
+				goto RESTART
+			}
+		}
 
 		if err != nil {
 			fmt.Println(err)
@@ -91,13 +104,16 @@ RESTART:
 				goto RESTART
 			}
 		}
-
+		if len(futrues) == 0 {
+			time.Sleep(1 * time.Second)
+			// fetch_retry++
+			continue
+		}
 		if len(pre_future) > 0 {
 			if futrues[0].Volume == pre_future[0].Volume {
 				continue
 			}
 		}
-
 		if *pbDetail {
 			printDetail(futrues)
 		} else {
@@ -132,7 +148,7 @@ func printBrief(futrues []Futures) {
 
 	var th int
 	if bIsDay {
-		th = 4000
+		th = 8000
 	} else {
 		th = 1000
 	}
@@ -147,7 +163,7 @@ func printBrief(futrues []Futures) {
 	if (Sum(keep_m1) > th && m1 > th) || (Sum(keep_m1) < -th && m1 < -th) {
 		m2 = 0
 	} else {
-		m2 += (vol - pre_vol) * (updown - pre_ud)
+		m2 += m1
 	}
 	s := fmt.Sprintf("[%s] p:% 5d, v:% 7d, r:% 5d, v_dif:% 5d, r_dif:% 4d, m1:% 9d, m2:% 9d",
 		time.Now().Format("2006-01-02 15:04:05"),
@@ -165,13 +181,11 @@ func printBrief(futrues []Futures) {
 }
 
 func fetch(url string) (futrues []Futures, err error) {
-	resp, _, errs := gorequest.New().
-		Get(url).
-		EndStruct(&futrues)
+	_, _, errs := gorequest.New().Get(url).EndStruct(&futrues)
 
-	if resp.StatusCode != 200 {
-		err = errors.New("fetch failed")
-	}
+	// if resp.StatusCode != 200 {
+	// err = errors.New("fetch failed")
+	// }
 	if errs != nil {
 		return
 	}
@@ -273,12 +287,3 @@ func Sum(a []int) int {
 	}
 	return s
 }
-
-// 1
-// [  {    "futvol": "425,705",    "optvol": "1,114,138"  }]
-
-// id 3 是每分鐘資料
-// [  {    "time": "0845",    "price": "9607"  }
-
-// id 13 個股
-// 14 k棒 （似乎不止一天）
