@@ -208,14 +208,14 @@ func getURL(time string) (url string) {
 
 func isOpen() bool {
 	t := time.Now()
-	if t.Weekday() == 0 || t.Weekday() == 6 {
-		return false
-	}
 	h := float64(t.Hour())
 	m := float64(t.Minute())
 	s := float64(t.Second())
-
 	t_in_min := h*60 + m + s/60
+    
+	if t.Weekday() == 0 || (t.Weekday() == 6 && t_in_min > 300) {
+		return false
+	}
 
 	// 05:00 = 300
 	// 08:45 = 525
