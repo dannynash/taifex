@@ -267,11 +267,12 @@ func getDiffToNextOpenTime() (H int, M int, S int) {
 
 	// 08:45 = 525
 	// 15:00 = 900
-	aOpenTime := [4]float64{525, 900}
+	aOpenTime := [2]float64{525, 900}
 	openTime := aOpenTime[0]
 	for _, t := range aOpenTime {
 		if t_in_min < t {
 			openTime = t
+			break
 		}
 	}
 	H = int(openTime-t_in_min) / 60
