@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gen2brain/beeep"
 	"github.com/parnurzeal/gorequest"
 )
 
@@ -57,7 +58,8 @@ RESTART:
 	pre_ud = 0
 	pre_future = nil
 	pre_data_init = false
-	for i, _ := range keep_m1 {
+	m2 = 0
+	for i := range keep_m1 {
 		keep_m1[i] = 0
 	}
 
@@ -145,6 +147,7 @@ func printBrief(futrues []Futures) {
 	price := StrToInt(future.Price)
 	updown := StrToInt(future.Updown)
 	bIsDay := isDay()
+	timeStr := time.Now().Format("2006-01-02 15:04:05")
 
 	var th int
 	if bIsDay {
@@ -162,11 +165,15 @@ func printBrief(futrues []Futures) {
 	keep_m1 = append(keep_m1, m1)
 	if (Sum(keep_m1) > th && m1 > th) || (Sum(keep_m1) < -th && m1 < -th) {
 		m2 = 0
+		err := beeep.Notify("GOGOGO", timeStr, "")
+		if err != nil {
+			panic(err)
+		}
 	} else {
 		m2 += m1
 	}
 	s := fmt.Sprintf("[%s] p:% 5d, v:% 7d, r:% 5d, v_dif:% 5d, r_dif:% 4d, m1:% 9d, m2:% 9d",
-		time.Now().Format("2006-01-02 15:04:05"),
+		timeStr,
 		price,
 		vol,
 		updown,
@@ -212,7 +219,7 @@ func isOpen() bool {
 	m := float64(t.Minute())
 	s := float64(t.Second())
 	t_in_min := h*60 + m + s/60
-    
+
 	if t.Weekday() == 0 || (t.Weekday() == 6 && t_in_min > 300) {
 		return false
 	}
